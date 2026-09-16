@@ -1,0 +1,559 @@
+const express  = require("express");
+const router   = express.Router();
+const { createClient } = require("@supabase/supabase-js");
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
+
+const { requireAuth } = require("../middleware/auth");
+router.use(requireAuth);
+
+// Prevent hotel staff from accessing other hotels' data
+router.use((req, res, next) => {
+  const hotel_id = req.params.hotel_id || req.query.hotel_id || req.body?.hotel_id;
+
+  if (req.user.role === "hotel_staff" && hotel_id && hotel_id !== req.user.hotel_id) {
+    return res.status(403).json({
+      success: false,
+      message: "Access denied — you can only access your own hotel data.",
+    });
+  }
+  next();
+});
+
+router.get("/reports/sales", async (req, res) => {
+  const { days, hotel_id } = req.query;
+  const since = new Date();
+  since.setDate(since.getDate() - (parseInt(days) || 30));
+
+  try {
+    let query = supabase
+      .from("sales")
+      .select("*, products(name), hotels(name)")
+      .gte("sold_at", since.toISOString())
+      .order("sold_at", { ascending: false });
+
+    if (hotel_id) query = query.eq("hotel_id", hotel_id);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return res.json({ success: true, sales: data || [] });
+  } catch { return res.status(500).json({ success: false, message: "Server error" }); }
+});
+
+router.get("/reports/dues", async (req, res) => {
+  try {
+    const { data: hotels } = await supabase.from("hotels").select("id, name");
+    const dues = await Promise.all(hotels.map(async h => {
+      const { data: payments } = await supabase
+        .from("payments").select("amount")
+        .eq("hotel_id", h.id).in("status", ["pending", "partial"]);
+      const total = payments?.reduce((s, p) => s + Number(p.amount), 0) || 0;
+      return { hotel_name: h.name, total };
+    }));
+    return res.json({ success: true, dues });
+  } catch { return res.status(500).json({ success: false, message: "Server error" }); }
+});
+
+// ── DASHBOARD & STATS ─────────────────────────────────────
+
+router.get("/stats", async (req, res) => {
+  try {
+    const [hotels, products, sales, payments] = await Promise.all([
+      supabase.from("hotels").select("id", { count: "exact" }).eq("status", "active"),
+      supabase.from("products").select("id", { count: "exact" }),
+      supabase.from("sales").select("id", { count: "exact" }),
+      supabase.from("payments").select("amount").eq("status", "pending"),
+    ]);
+
+    const dues_pending = payments.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+
+    return res.json({
+      success: true,
+      stats: {
+        hotels:       hotels.count   || 0,
+        products:     products.count || 0,
+        sales_month: sales.count    || 0,
+        dues_pending,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// ── HOTELS ────────────────────────────────────────────────
+
+router.get("/hotels", async (req, res) => {
+  try {
+    const { data: hotels, error } = await supabase
+      .from("hotels")
+      .select("id, name, status, address, contact_person, contact_phone, contact_email")
+      .eq("status", "active");
+
+    if (error) throw error;
+
+    const enriched = await Promise.all(hotels.map(async (h) => {
+      const [inv, payments] = await Promise.all([
+        supabase.from("inventory").select("quantity_remaining, quantity_sold").eq("hotel_id", h.id),
+        supabase.from("payments").select("amount").eq("hotel_id", h.id).eq("status", "pending"),
+      ]);
+
+      const stock = inv.data?.reduce((s, i) => s + i.quantity_remaining, 0) || 0;
+      const sold  = inv.data?.reduce((s, i) => s + i.quantity_sold, 0)      || 0;
+      const dues  = payments.data?.reduce((s, p) => s + Number(p.amount), 0) || 0;
+
+      return { ...h, stock, sold, dues };
+    }));
+
+    return res.json({ success: true, hotels: enriched });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// Shared Add Hotel Handler
+const handleAddHotel = async (req, res) => {
+  const { name, address, contact_person, contact_phone, contact_email, status } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ success: false, message: "Hotel name is required." });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("hotels")
+      .insert({
+        name,
+        address: address || null,
+        contact_person: contact_person || null,
+        contact_phone: contact_phone || null,
+        contact_email: contact_email || null,
+        status: status ? status.toLowerCase() : "active",
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Supabase Error:", error.message);
+      return res.status(400).json({ success: false, message: error.message });
+    }
+
+    return res.status(201).json({ success: true, hotel: data });
+  } catch (err) {
+    console.error("Server Error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+router.post("/hotels/add", handleAddHotel);
+router.post("/hotels", handleAddHotel);
+
+router.put("/hotels/:id", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("hotels")
+      .update(req.body)
+      .eq("id", req.params.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.json({ success: true, hotel: data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+router.delete("/hotels/:id", async (req, res) => {
+  try {
+    const { error } = await supabase.from("hotels").delete().eq("id", req.params.id);
+    if (error) throw error;
+    return res.json({ success: true, message: "Hotel deleted." });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// ── SALES & NOTIFICATIONS ─────────────────────────────────
+
+router.get("/sales/recent", async (req, res) => {
+  try {
+    const { data: sales, error } = await supabase
+      .from("sales")
+      .select("*, products(name), hotels(name)")
+      .order("sold_at", { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+
+    return res.json({ success: true, sales });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+router.get("/notifications", async (req, res) => {
+  try {
+    const { data: notifications, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
+
+    return res.json({ success: true, notifications: notifications || [] });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+router.post("/notifications/read-all", async (req, res) => {
+  try {
+    await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("is_read", false);
+
+    return res.json({ success: true, message: "All marked as read" });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+router.get("/hotel/stats", async (req, res) => {
+  try {
+    const hotel_id = req.user?.hotel_id;
+    if (!hotel_id) return res.status(400).json({ success: false, message: "No hotel assigned." });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    const [inv, todaySales, monthSales, payments] = await Promise.all([
+      supabase.from("inventory").select("quantity_remaining").eq("hotel_id", hotel_id),
+      supabase.from("sales").select("id", { count: "exact" }).eq("hotel_id", hotel_id).gte("sold_at", today.toISOString()),
+      supabase.from("sales").select("id", { count: "exact" }).eq("hotel_id", hotel_id).gte("sold_at", monthStart.toISOString()),
+      supabase.from("payments").select("amount").eq("hotel_id", hotel_id).eq("status", "pending"),
+    ]);
+
+    const stock = inv.data?.reduce((s, i) => s + i.quantity_remaining, 0) || 0;
+    const dues  = payments.data?.reduce((s, p) => s + Number(p.amount), 0) || 0;
+
+    return res.json({
+      success: true,
+      stats: {
+        stock,
+        today: todaySales.count || 0,
+        month: monthSales.count || 0,
+        dues,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+router.get("/sales/hotel/:hotel_id", async (req, res) => {
+  try {
+    const { hotel_id } = req.params;
+
+    const { data: sales, error } = await supabase
+      .from("sales")
+      .select("*, products(name), hotels(name)")
+      .eq("hotel_id", hotel_id)
+      .order("sold_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+
+    return res.json({ success: true, sales: sales || [] });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+router.get("/payments/hotel/:hotel_id", async (req, res) => {
+  try {
+    const { hotel_id } = req.params;
+
+    const { data: payments, error } = await supabase
+      .from("payments")
+      .select("*")
+      .eq("hotel_id", hotel_id)
+      .in("status", ["pending", "partial"])
+      .order("due_date", { ascending: true });
+
+    if (error) throw error;
+
+    return res.json({ success: true, payments: payments || [] });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+router.post("/sales/record", async (req, res) => {
+  const { product_id, hotel_id, quantity, recorded_by } = req.body;
+
+  if (!product_id || !hotel_id || !quantity) {
+    return res.status(400).json({
+      success: false,
+      message: "product_id, hotel_id and quantity are required.",
+    });
+  }
+
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    return res.status(400).json({
+      success: false,
+      message: "Quantity must be a positive whole number.",
+    });
+  }
+
+  try {
+    // Fix 1 — fetch price from DB, never trust frontend
+    const { data: product, error: productError } = await supabase
+      .from("products")
+      .select("unit_price, name")
+      .eq("id", product_id)
+      .single();
+
+    if (productError || !product) {
+      return res.status(404).json({ success: false, message: "Product not found." });
+    }
+
+    const sale_price = product.unit_price;
+
+    if (!sale_price || sale_price <= 0) {
+      return res.status(400).json({ success: false, message: "Product has no valid price set." });
+    }
+
+    // Fix 2 — verify hotel staff belongs to this hotel
+    if (req.user.role === "hotel_staff" && req.user.hotel_id !== hotel_id) {
+      return res.status(403).json({ success: false, message: "You can only record sales for your own hotel." });
+    }
+
+    // Fix 3 — get inventory and lock it
+    const { data: inv, error: invError } = await supabase
+      .from("inventory")
+      .select("*")
+      .eq("product_id", product_id)
+      .eq("hotel_id", hotel_id)
+      .single();
+
+    if (invError || !inv) {
+      return res.status(404).json({ success: false, message: "This product is not assigned to this hotel." });
+    }
+
+    // Fix 4 — prevent negative stock
+    if (inv.quantity_remaining < quantity) {
+      return res.status(400).json({
+        success: false,
+        message: `Only ${inv.quantity_remaining} units available. Cannot sell ${quantity}.`,
+      });
+    }
+
+    if (inv.quantity_remaining === 0) {
+      return res.status(400).json({ success: false, message: "This item is out of stock." });
+    }
+
+    // Fix 5 — atomic update to prevent duplicate/simultaneous sales
+    const { data: updatedInv, error: updateError } = await supabase
+      .from("inventory")
+      .update({
+        quantity_sold:      inv.quantity_sold + quantity,
+        quantity_remaining: inv.quantity_remaining - quantity,
+        last_updated:       new Date().toISOString(),
+      })
+      .eq("id", inv.id)
+      .eq("quantity_remaining", inv.quantity_remaining) // optimistic lock
+      .select()
+      .single();
+
+    if (updateError || !updatedInv) {
+      return res.status(409).json({
+        success: false,
+        message: "Sale could not be processed — stock was updated by another transaction. Please try again.",
+      });
+    }
+
+    // Record the sale
+    const { data: sale, error: saleError } = await supabase
+      .from("sales")
+      .insert({
+        inventory_id:  inv.id,
+        hotel_id,
+        product_id,
+        recorded_by:   recorded_by || null,
+        quantity_sold: quantity,
+        sale_price,
+        total_amount:  quantity * sale_price,
+        sold_at:       new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (saleError) throw saleError;
+
+    // Notify admin
+    await supabase.from("notifications").insert({
+      sale_id:    sale.id,
+      message:    `Sale recorded — ${product.name} x${quantity} at hotel ${hotel_id} for \u20B9${(quantity * sale_price).toLocaleString()}`,
+      is_read:    false,
+      created_at: new Date().toISOString(),
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Sale recorded successfully.",
+      sale,
+    });
+
+  } catch (err) {
+    console.error(`[${new Date().toISOString()}] Sale error:`, err.message);
+    return res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+router.post("/hotel/assist", async (req, res) => {
+  const { hotel_id, hotel_name, message, user_id } = req.body;
+
+  if (!hotel_id || !message) {
+    return res.status(400).json({ success: false, message: "Missing required fields." });
+  }
+
+  try {
+    const { error } = await supabase.from("notifications").insert({
+      message:    `Assistance requested by ${hotel_name} — ${message}`,
+      is_read:    false,
+      created_at: new Date().toISOString(),
+    });
+
+    if (error) throw error;
+
+    return res.json({ success: true, message: "Request sent to admin." });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// ── PRODUCTS ──────────────────────────────────────────────
+
+router.get("/products", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return res.json({ success: true, products: data || [] });
+  } catch { return res.status(500).json({ success: false, message: "Server error" }); }
+});
+
+router.post("/products/add", async (req, res) => {
+  const { name, description, origin_country, category, barcode, sku, unit_price, image_url } = req.body;
+  if (!name)    return res.status(400).json({ success: false, message: "Product name is required." });
+  if (!barcode) return res.status(400).json({ success: false, message: "Barcode is required." });
+  if (!sku)     return res.status(400).json({ success: false, message: "SKU is required." });
+  try {
+    const { data, error } = await supabase
+      .from("products")
+      .insert({ name, description, origin_country, category, barcode, sku, unit_price: unit_price || 0, image_url })
+      .select().single();
+    if (error) throw error;
+    return res.status(201).json({ success: true, product: data });
+  } catch (err) {
+    const msg = err.message?.includes("unique") ? "Barcode or SKU already exists." : "Server error";
+    return res.status(500).json({ success: false, message: msg });
+  }
+});
+
+router.put("/products/:id", async (req, res) => {
+  const { name, description, origin_country, category, barcode, sku, unit_price, image_url } = req.body;
+
+  if (!name)    return res.status(400).json({ success: false, message: "Product name is required." });
+  if (!barcode) return res.status(400).json({ success: false, message: "Barcode is required." });
+  if (!sku)     return res.status(400).json({ success: false, message: "SKU is required." });
+  if (unit_price < 0) return res.status(400).json({ success: false, message: "Price cannot be negative." });
+
+  try {
+    const { data, error } = await supabase
+      .from("products")
+      .update({ name, description, origin_country, category, barcode, sku, unit_price, image_url })
+      .eq("id", req.params.id)
+      .select().single();
+    if (error) throw error;
+    return res.json({ success: true, product: data });
+  } catch (err) {
+    console.error(`[${new Date().toISOString()}] Product update error:`, err.message);
+    return res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+router.delete("/products/:id", async (req, res) => {
+  try {
+    const { error } = await supabase.from("products").delete().eq("id", req.params.id);
+    if (error) throw error;
+    return res.json({ success: true, message: "Product deleted." });
+  } catch { return res.status(500).json({ success: false, message: "Server error" }); }
+});
+
+// ── STAFF ─────────────────────────────────────────────────
+
+router.get("/staff", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .select("id, name, email, role, hotel_id, status, created_at, hotels(name)")
+      .eq("role", "hotel_staff")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return res.json({ success: true, staff: data || [] });
+  } catch { return res.status(500).json({ success: false, message: "Server error" }); }
+});
+
+router.put("/staff/:id", async (req, res) => {
+  const { name, email, password, hotel_id, status } = req.body;
+
+  if (!name)     return res.status(400).json({ success: false, message: "Name is required." });
+  if (!email)    return res.status(400).json({ success: false, message: "Email is required." });
+  if (!hotel_id) return res.status(400).json({ success: false, message: "Hotel is required." });
+
+  const updates = { name, email, hotel_id, status };
+
+  try {
+    if (password) {
+      if (password.length < 8) {
+        return res.status(400).json({ success: false, message: "Password must be at least 8 characters." });
+      }
+      const bcrypt = require("bcryptjs");
+      updates.password_hash = await bcrypt.hash(password, 12);
+    }
+
+    const { data, error } = await supabase
+      .from("users")
+      .update(updates)
+      .eq("id", req.params.id)
+      .eq("role", "hotel_staff")
+      .select("id, name, email, role, hotel_id, status")
+      .single();
+
+    if (error) throw error;
+    return res.json({ success: true, staff: data });
+  } catch (err) {
+    console.error(`[${new Date().toISOString()}] Staff update error:`, err.message);
+    return res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+router.delete("/staff/:id", async (req, res) => {
+  try {
+    const { error } = await supabase.from("users").delete().eq("id", req.params.id);
+    if (error) throw error;
+    return res.json({ success: true, message: "Staff account deleted." });
+  } catch { return res.status(500).json({ success: false, message: "Server error" }); }
+});
+
+module.exports = router;
