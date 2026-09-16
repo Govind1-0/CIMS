@@ -1,43 +1,75 @@
-# Dependencies
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+# ==========================================
+# CIMS - Git Ignore
+# ==========================================
 
-# Environment and secrets
+# Node.js dependencies
+node_modules/
+
+# Environment variables / secrets
 .env
 .env.*
 !.env.example
 
-# Logs and local runtime files
+# Node / npm logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 *.log
-logs/
-*.pid
-*.pid.lock
 
-# OS and editor files
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
-.idea/
+# ==========================================
+# Android / Gradle
+# ==========================================
 
-# Android and Gradle generated files
 android/.gradle/
 android/build/
 android/app/build/
-android/capacitor-cordova-android-plugins/build/
-android/capacitor-cordova-android-plugins/src/main/jniLibs/
+android/**/build/
 android/local.properties
 android/.cxx/
-android/**/build/
+
+# Android generated APK/AAB files
 *.apk
 *.aab
 
 # Capacitor generated web assets
 android/app/src/main/assets/public/
 
-# Coverage and test output
+# ==========================================
+# Android Studio
+# ==========================================
+
+android/.idea/
+android/*.iml
+android/app/*.iml
+
+# ==========================================
+# Capacitor
+# ==========================================
+
+.capacitor/
+
+# ==========================================
+# VS Code
+# ==========================================
+
+.vscode/*
+!.vscode/tasks.json
+
+# ==========================================
+# Coverage / testing
+# ==========================================
+
 coverage/
 .nyc_output/
+
+# ==========================================
+# Operating System
+# ==========================================
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary editor files
+*.swp
+*.swo
