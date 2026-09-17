@@ -378,6 +378,31 @@
       .field-row { grid-template-columns: 1fr; }
       .detail-grid { grid-template-columns: 1fr; }
     }
+
+    @media (max-width: 480px) {
+      .stats-row { grid-template-columns: 1fr 1fr; }
+
+      .hotels-table th:nth-child(2),
+      .hotels-table td:nth-child(2) { display: none; }
+
+      .action-btns { flex-wrap: wrap; gap: 4px; }
+      .action-btn  { padding: 5px 8px; font-size: 11px; }
+
+      .toolbar { flex-direction: column; }
+      .search-wrap { width: 100%; }
+      .filter-select { width: 100%; }
+    }
+    @media (max-width: 480px) {
+      .content { padding: 12px; }
+
+      .topbar  { padding: 12px 14px; }
+
+      .modal   { padding: 20px 16px; margin: 0 8px; }
+
+      table    { font-size: 12px; }
+      table th,
+      table td { padding: 10px 12px; }
+    }
   </style>
 </head>
 <body>
