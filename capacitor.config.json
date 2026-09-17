@@ -1,5 +1,11 @@
 {
-  "appId": "com.cims.inventory",
+  "appId": "com.cims.app",
   "appName": "CIMS",
-  "webDir": "Frontend"
+  "webDir": "Frontend",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
 }

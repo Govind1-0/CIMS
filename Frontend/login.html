@@ -2,10 +2,32 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <meta name="theme-color" content="#1a1a2e"/>
   <title>CIMS — Login</title>
   <style>
+    html, body {
+      width: 100%;
+      max-width: 100vw;
+      overflow-x: hidden;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    html { min-height: 100%; }
+    body { min-height: 100%; }
+
+    button, input, select, textarea { font: inherit; }
+
+    @supports (-webkit-touch-callout: none) {
+      body { min-height: -webkit-fill-available; }
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -420,6 +442,12 @@
 
 <script>
   const API   = "https://cims-ss3i.onrender.com/api/auth";
+
+  fetch("https://cims-ss3i.onrender.com/health")
+  .then(r => r.json())
+  .then(data => console.log("BACKEND TEST:", data))
+  .catch(err => console.error("BACKEND TEST FAILED:", err));
+
   let   role  = "admin"; // "admin" | "hotel"
 
   function switchRole(newRole) {
@@ -491,10 +519,15 @@
           : "hotel.html";
       }, 1200);
 
-    } catch {
+     } 
+     
+    catch (error) 
+     {
+      console.error("LOGIN ERROR:", error);
       setLoading(false);
-      showError("Cannot connect to server. Is the backend running?");
+      showError("Login error: " + error.message);
     }
+    
   }
 
   function setLoading(loading) {
