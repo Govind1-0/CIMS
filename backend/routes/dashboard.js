@@ -10,7 +10,7 @@ const supabase = createClient(
 const { requireAuth } = require("../middleware/auth");
 router.use(requireAuth);
 
-// Prevent hotel staff from accessing other hotels' data
+
 router.use((req, res, next) => {
   const hotel_id = req.params.hotel_id || req.query.hotel_id || req.body?.hotel_id;
 
@@ -57,7 +57,7 @@ router.get("/reports/dues", async (req, res) => {
   } catch { return res.status(500).json({ success: false, message: "Server error" }); }
 });
 
-// ── DASHBOARD & STATS ─────────────────────────────────────
+
 
 router.get("/stats", async (req, res) => {
   try {
@@ -84,7 +84,7 @@ router.get("/stats", async (req, res) => {
   }
 });
 
-// ── HOTELS ────────────────────────────────────────────────
+
 
 router.get("/hotels", async (req, res) => {
   try {
@@ -114,7 +114,7 @@ router.get("/hotels", async (req, res) => {
   }
 });
 
-// Shared Add Hotel Handler
+
 const handleAddHotel = async (req, res) => {
   const { name, address, contact_person, contact_phone, contact_email, status } = req.body;
 
@@ -177,7 +177,7 @@ router.delete("/hotels/:id", async (req, res) => {
   }
 });
 
-// ── SALES & NOTIFICATIONS ─────────────────────────────────
+
 
 router.get("/sales/recent", async (req, res) => {
   try {
@@ -313,7 +313,7 @@ router.post("/sales/record", async (req, res) => {
   }
 
   try {
-    // Fix 1 — fetch price from DB, never trust frontend
+    
     const { data: product, error: productError } = await supabase
       .from("products")
       .select("unit_price, name")
@@ -330,12 +330,12 @@ router.post("/sales/record", async (req, res) => {
       return res.status(400).json({ success: false, message: "Product has no valid price set." });
     }
 
-    // Fix 2 — verify hotel staff belongs to this hotel
+    
     if (req.user.role === "hotel_staff" && req.user.hotel_id !== hotel_id) {
       return res.status(403).json({ success: false, message: "You can only record sales for your own hotel." });
     }
 
-    // Fix 3 — get inventory and lock it
+    
     const { data: inv, error: invError } = await supabase
       .from("inventory")
       .select("*")
@@ -347,7 +347,7 @@ router.post("/sales/record", async (req, res) => {
       return res.status(404).json({ success: false, message: "This product is not assigned to this hotel." });
     }
 
-    // Fix 4 — prevent negative stock
+    
     if (inv.quantity_remaining < quantity) {
       return res.status(400).json({
         success: false,
@@ -359,7 +359,7 @@ router.post("/sales/record", async (req, res) => {
       return res.status(400).json({ success: false, message: "This item is out of stock." });
     }
 
-    // Fix 5 — atomic update to prevent duplicate/simultaneous sales
+    
     const { data: updatedInv, error: updateError } = await supabase
       .from("inventory")
       .update({
@@ -368,7 +368,7 @@ router.post("/sales/record", async (req, res) => {
         last_updated:       new Date().toISOString(),
       })
       .eq("id", inv.id)
-      .eq("quantity_remaining", inv.quantity_remaining) // optimistic lock
+      .eq("quantity_remaining", inv.quantity_remaining) 
       .select()
       .single();
 
@@ -379,7 +379,7 @@ router.post("/sales/record", async (req, res) => {
       });
     }
 
-    // Record the sale
+    
     const { data: sale, error: saleError } = await supabase
       .from("sales")
       .insert({
@@ -397,7 +397,7 @@ router.post("/sales/record", async (req, res) => {
 
     if (saleError) throw saleError;
 
-    // Notify admin
+    
     await supabase.from("notifications").insert({
       sale_id:    sale.id,
       message:    `Sale recorded — ${product.name} x${quantity} at hotel ${hotel_id} for \u20B9${(quantity * sale_price).toLocaleString()}`,
@@ -439,7 +439,7 @@ router.post("/hotel/assist", async (req, res) => {
   }
 });
 
-// ── PRODUCTS ──────────────────────────────────────────────
+
 
 router.get("/products", async (req, res) => {
   try {
@@ -500,7 +500,7 @@ router.delete("/products/:id", async (req, res) => {
   } catch { return res.status(500).json({ success: false, message: "Server error" }); }
 });
 
-// ── STAFF ─────────────────────────────────────────────────
+
 
 router.get("/staff", async (req, res) => {
   try {

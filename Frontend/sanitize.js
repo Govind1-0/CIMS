@@ -8,7 +8,7 @@ function sanitize(str) {
     .replace(/'/g, "&#039;");
 }
 
-// Auto-sanitize all innerHTML rendering globally
+
 const _originalSet = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML").set;
 Object.defineProperty(Element.prototype, "innerHTML", {
   set(value) {

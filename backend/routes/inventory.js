@@ -133,7 +133,7 @@ router.get("/hotel/:hotel_id", async (req, res) => {
   }
 });
 
-// Get all inventory across all hotels
+
 router.get("/all", async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -145,7 +145,7 @@ router.get("/all", async (req, res) => {
   } catch { return res.status(500).json({ success: false, message: "Server error" }); }
 });
 
-// PUT - update inventory
+
 router.put("/:id", async (req, res) => {
   const { quantity_assigned, quantity_remaining, quantity_sold, reason } = req.body;
   if (quantity_assigned === undefined || quantity_remaining === undefined || quantity_sold === undefined) {
@@ -171,7 +171,7 @@ router.put("/:id", async (req, res) => {
   } catch { return res.status(500).json({ success: false, message: "Server error" }); }
 });
 
-// DELETE - remove inventory record
+
 router.delete("/:id", async (req, res) => {
   try {
     const { data: inv } = await supabase

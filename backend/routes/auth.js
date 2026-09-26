@@ -113,7 +113,7 @@ router.post("/logout", (req, res) => {
 router.post("/register", async (req, res) => {
   const { name, email, password, role, hotel_id } = req.body;
 
-  // In register route — add this check
+  
 if (role === "admin") {
   return res.status(403).json({
     success: false,

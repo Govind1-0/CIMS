@@ -656,7 +656,7 @@
     <div class="contact-arrow">&#8250;</div>
   </div>
 
-  <!-- Message via WhatsApp -->
+  
   <div class="contact-card" onclick="openWhatsApp()">
     <div class="contact-icon-wrap">&#9993;</div>
     <div class="contact-text">
@@ -666,7 +666,7 @@
     <div class="contact-arrow">&#8250;</div>
   </div>
 
-  <!-- Report an issue -->
+  
   <div class="contact-card" onclick="openReportModal()">
     <div class="contact-icon-wrap">&#9873;</div>
     <div class="contact-text">
@@ -678,7 +678,7 @@
 
 </div>
 
-<!-- Report modal -->
+
 <div class="modal-overlay" id="report-modal">
   <div class="scan-modal">
     <div class="modal-handle"></div>
@@ -1123,9 +1123,9 @@
 
   setInterval(loadAll, 60000);
 
-  const ADMIN_WHATSAPP = "917907356098"; // replace with your real number
+  const ADMIN_WHATSAPP = "917907356098"; 
 
-// Notify admin — pushes to admin dashboard notifications
+
 async function notifyAdmin() {
   const btn = document.getElementById("btn-notify");
   btn.style.opacity = "0.6";
@@ -1159,7 +1159,7 @@ async function notifyAdmin() {
   }
 }
 
-// WhatsApp — opens with pre-filled message
+
 function openWhatsApp() {
   const message = encodeURIComponent(
     `Need assistance — ${user.hotel_name} (Hotel ID: ${user.hotel_id})`
@@ -1167,7 +1167,7 @@ function openWhatsApp() {
   window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${message}`, "_blank");
 }
 
-// Report modal
+
 function openReportModal() {
   document.getElementById("report-modal").classList.add("visible");
   document.getElementById("issue-type").value        = "";
@@ -1179,7 +1179,7 @@ function closeReportModal() {
   document.getElementById("report-modal").classList.remove("visible");
 }
 
-// Submit report — sends to admin dashboard + notification
+
 async function submitReport() {
   const type        = document.getElementById("issue-type").value.trim();
   const description = document.getElementById("issue-description").value.trim();
