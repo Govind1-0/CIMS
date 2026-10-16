@@ -353,6 +353,15 @@
       padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px;
     }
     .inv-row:last-child { border-bottom: none; }
+    .btn-paid {
+      background: rgba(77,184,158,.15); color: #4db89e;
+      border: 1px solid rgba(77,184,158,.35); border-radius: 6px;
+      padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer;
+      font-family: inherit; margin-left: 8px;
+    }
+    .btn-paid:hover { background: rgba(77,184,158,.25); }
+    .btn-paid:disabled { opacity: .5; cursor: default; }
+    .pay-status { font-size: 10px; text-transform: uppercase; color: var(--muted); margin-left: 8px; margin-right: 10px; }
     .inv-stock { font-weight: 600; color: #4db89e; }
     .inv-stock.low { color: #e07b73; }
 
@@ -402,6 +411,13 @@
       table    { font-size: 12px; }
       table th,
       table td { padding: 10px 12px; }
+    }
+  
+    /* mobile width fix: stop the table from stretching the page */
+    .main { min-width: 0; }
+    .hotels-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    @media (max-width: 480px) {
+      .hotels-table th, .hotels-table td { padding: 10px 8px; }
     }
   </style>
 </head>
@@ -846,8 +862,11 @@
       document.getElementById("d-dues").innerHTML = payData.payments?.length
         ? payData.payments.map(p => `
             <div class="inv-row">
-              <span>${p.notes || "Invoice"}</span>
-              <span style="color:#e07b73;font-weight:600">\u20B9${Number(p.amount).toLocaleString()}</span>
+              <span>${sanitize(p.notes || "Invoice")}<span class="pay-status">${sanitize(p.status)}</span></span>
+              <span style="display:flex;align-items:center">
+                <span style="color:#e07b73;font-weight:600">\u20B9${Number(p.amount).toLocaleString()}</span>
+                <button class="btn-paid" onclick="markPaid('${p.id}', '${id}', this)">Mark paid</button>
+              </span>
             </div>`).join("")
           + `<div class="inv-row" style="font-weight:700">
               <span>Total</span>
@@ -858,6 +877,28 @@
     } catch {
       document.getElementById("d-inventory").innerHTML = `<div class="inv-row" style="color:var(--muted)">Could not load</div>`;
       document.getElementById("d-dues").innerHTML      = `<div class="inv-row" style="color:var(--muted)">Could not load</div>`;
+    }
+  }
+
+  async function markPaid(paymentId, hotelId, btn) {
+    if (!confirm("Mark this payment as paid?")) return;
+    btn.disabled = true;
+    try {
+      const res  = await fetch(`${API}/payments/${paymentId}`, {
+        method: "PUT", headers, body: JSON.stringify({ status: "paid" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Payment marked as paid", "success");
+        await loadHotels();      // refresh table totals
+        viewHotel(hotelId);      // refresh the open dues list
+      } else {
+        showToast(data.message || "Failed to update payment", "error");
+        btn.disabled = false;
+      }
+    } catch {
+      showToast("Cannot connect to server", "error");
+      btn.disabled = false;
     }
   }
 

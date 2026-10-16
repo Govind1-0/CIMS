@@ -295,6 +295,45 @@ router.get("/payments/hotel/:hotel_id", async (req, res) => {
   }
 });
 
+router.put("/payments/:id", async (req, res) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ success: false, message: "Admin access required." });
+  }
+
+  const status  = String(req.body.status || "paid").toLowerCase();
+  const allowed = ["paid", "pending", "partial", "overdue"];
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ success: false, message: "Invalid payment status." });
+  }
+
+  try {
+    const { data: payment, error } = await supabase
+      .from("payments")
+      .update({ status })
+      .eq("id", req.params.id)
+      .select()
+      .single();
+
+    if (error || !payment) {
+      return res.status(404).json({ success: false, message: "Payment not found." });
+    }
+
+    const { data: hotel } = await supabase
+      .from("hotels").select("name").eq("id", payment.hotel_id).single();
+
+    await supabase.from("notifications").insert({
+      message:    `Payment of \u20B9${Number(payment.amount).toLocaleString()} marked as ${status} \u2014 ${hotel?.name || "hotel"}.`,
+      is_read:    false,
+      created_at: new Date().toISOString(),
+    });
+
+    return res.json({ success: true, message: `Payment marked as ${status}.`, payment });
+  } catch (err) {
+    console.error(`[${new Date().toISOString()}] Payment update error:`, err.message);
+    return res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
 router.post("/sales/record", async (req, res) => {
   const { product_id, hotel_id, quantity, recorded_by } = req.body;
 

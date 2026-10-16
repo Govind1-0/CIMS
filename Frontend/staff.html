@@ -2,32 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="theme-color" content="#1a1a2e"/>
   <title>CIMS — Staff Management</title>
   <style>
-    html, body {
-      width: 100%;
-      max-width: 100vw;
-      overflow-x: hidden;
-      -webkit-text-size-adjust: 100%;
-    }
-
-    *, *::before, *::after {
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-    }
-
-    html { min-height: 100%; }
-    body { min-height: 100%; }
-
-    button, input, select, textarea { font: inherit; }
-
-    @supports (-webkit-touch-callout: none) {
-      body { min-height: -webkit-fill-available; }
-    }
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --navy:       #1a1a2e;
@@ -136,8 +114,8 @@
     .search-wrap input::placeholder { color: var(--muted); }
     .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; }
 
-    .table-wrap { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; }
-    .staff-table { width: 100%; min-width: 680px; border-collapse: collapse; }
+    .table-wrap { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .staff-table { width: 100%; border-collapse: collapse; }
     .staff-table th { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; padding: 12px 20px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
     .staff-table td { padding: 14px 20px; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: middle; }
     .staff-table tr:last-child td { border-bottom: none; }
@@ -213,44 +191,65 @@
       .topbar-menu { display: block; }
       .stats-row { grid-template-columns: repeat(3, 1fr); }
       .content { padding: 16px; }
-      .topbar { padding: 12px 16px; }
-      .topbar-title { min-width: 0; }
-      .btn-primary { padding: 9px 12px; }
     }
 
-    @media (max-width: 480px) {
-      .stats-row { grid-template-columns: 1fr 1fr 1fr; }
+      .main {
+        min-width: 0;      
+        max-width: 100%;
+      }
 
-      .staff-table th:nth-child(2),
-      .staff-table td:nth-child(2) { display: none; }
+      .content {
+        min-width: 0;
+      }
 
-      .action-btns { flex-wrap: wrap; gap: 4px; }
-      .action-btn  { padding: 5px 8px; font-size: 11px; }
-
-      .staff-name  { font-size: 13px; }
-      .staff-email { font-size: 10px; }
-
-      .toolbar { flex-direction: column; }
-      .search-wrap { width: 100%; }
-
-      .stats-row { gap: 8px; }
-      .stat-mini { padding: 12px 10px; }
-      .stat-mini-val { font-size: 20px; }
-      .stat-mini-lbl { font-size: 10px; }
-      .topbar-title { font-size: 14px; }
-      .btn-primary { font-size: 12px; }
+      .table-wrap {
+        max-width: 100%;
+        -webkit-overflow-scrolling: touch;
     }
-    @media (max-width: 480px) {
-      .content { padding: 12px; }
 
-      .topbar  { padding: 12px 14px; }
+    @media (max-width: 768px) {
+  .staff-table {
+    min-width: 0;
+    width: 100%;
+  }
 
-      .modal   { padding: 20px 16px; margin: 0 8px; }
+  .staff-table thead {
+    display: none;
+  }
 
-      table    { font-size: 12px; }
-      table th,
-      table td { padding: 10px 12px; }
-    }
+  .staff-table,
+  .staff-table tbody,
+  .staff-table tr,
+  .staff-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .staff-table tr {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .staff-table tr:last-child {
+    border-bottom: none;
+  }
+
+  .staff-table td,
+  .staff-table td:nth-child(2) {
+    display: block;
+    padding: 4px 0;
+    border: none;
+  }
+
+  .staff-table tr:hover td {
+    background: none;
+  }
+
+  .action-btns {
+    flex-wrap: wrap;
+    margin-top: 6px;
+  }
+}
   </style>
 </head>
 <body>
@@ -339,7 +338,6 @@
   </div>
 </div>
 
-
 <div class="modal-overlay" id="staff-modal">
   <div class="modal">
     <div class="modal-title" id="modal-title">Add staff member</div>
@@ -372,7 +370,6 @@
   </div>
 </div>
 
-
 <div class="modal-overlay" id="delete-modal">
   <div class="modal">
     <div class="modal-title">Remove staff account</div>
@@ -390,7 +387,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  const API     = "https://cims-ss3i.onrender.com/api";
+  const API     = "http://localhost:5000/api";
   const token   = localStorage.getItem("cims_token");
   const user    = JSON.parse(localStorage.getItem("cims_user") || "{}");
   const headers = { "Content-Type": "application/json", "Authorization": `Bearer ${token}` };
@@ -620,6 +617,5 @@
   }
 </script>
 <script src="sanitize.js"></script>
-<script src="timeout.js"></script>
 </body>
 </html>
