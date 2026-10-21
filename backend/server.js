@@ -22,9 +22,10 @@ app.use(cors({
     "http://localhost:5500",
     "http://localhost",
     "https://localhost",
-    "capacitor://localhost"
+    "capacitor://localhost",
+    "https://cims-j5ymndxri-cims3.vercel.app"
   ],
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
